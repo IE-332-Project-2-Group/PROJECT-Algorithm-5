@@ -1,0 +1,61 @@
+library(tidyverse)
+library(keras)
+library(tensorflow)
+library(reticulate)
+
+setwd("/Users/mohamedabuelreish")
+
+model_list <- load_model_tf("./dandelion_model")
+model <- model_list
+
+target_size <- c(224, 224)
+res <- data.frame(file = character(), class = character(), percent_dandelion = numeric(), percent_grass = numeric(), stringsAsFactors = FALSE)
+
+# Define a function to add noise to an image
+add_noise <- function(image_array, noise_strength) {
+  noise <- array(runif(length(image_array)), dim = dim(image_array))
+  noise_strength * noise + image_array
+}
+
+# Define noise strength parameter
+noise_strength <- 2.0
+
+f <- list.files("./grass")
+for (i in f){
+  test_image <- image_load(paste("./grass/",i,sep=""),
+                           target_size = target_size)
+  x <- image_to_array(test_image)
+  x <- array_reshape(x, c(1, dim(x)))
+  x <- x/255
+  
+  # Add noise to image
+  x_noisy <- add_noise(x, noise_strength)
+  
+  pred <- model %>% predict(x_noisy)
+  if (pred[1,2] < 0.50){
+    res <- rbind(res, data.frame(file = i, class = "not_grass", percent_dandelion = pred[1,1], percent_grass = 1- pred[1,1]))
+  } else {
+    res <- rbind(res, data.frame(file = i, class = "grass", percent_dandelion = pred[1,1], percent_grass = 1 - pred[1,1]))
+  }
+}
+
+f <- list.files("./dandelions")
+for (i in f){
+  test_image <- image_load(paste("./dandelions/",i,sep=""),
+                           target_size = target_size)
+  x <- image_to_array(test_image)
+  x <- array_reshape(x, c(1, dim(x)))
+  x <- x/255
+  
+  # Add noise to image
+  x_noisy <- add_noise(x, noise_strength)
+  
+  pred <- model %>% predict(x_noisy)
+  if (pred[1,1] < 0.50){
+    res <- rbind(res, data.frame(file = i, class = "not_dandelion", percent_dandelion = pred[1,1], percent_grass = 1 - pred[1,1]))
+  } else {
+    res <- rbind(res, data.frame(file = i, class = "dandelion", percent_dandelion = pred[1,1], percent_grass = 1 - pred[1,1]))
+  }
+}
+
+print(res)
